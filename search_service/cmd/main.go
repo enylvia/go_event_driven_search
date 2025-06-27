@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"search_service/pkg/app"
 	"search_service/pkg/config"
 	"search_service/pkg/repository"
 )
@@ -19,6 +20,7 @@ func main() {
 		log.Fatalf("Failed to ping Elasticsearch: %v", err)
 	}
 
-	log.Println("Search Service is running! (No HTTP server started yet, just testing config and ES connection)")
+	application := app.NewApplication(cfg, esRepo)
+	application.StartApplication()
 
 }
