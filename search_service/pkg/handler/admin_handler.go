@@ -128,7 +128,13 @@ func (h *AdminHandler) DeleteIndex(w http.ResponseWriter, r *http.Request) {
 	util.SendSuccessResponse(w, http.StatusOK, fmt.Sprintf("Index '%s' deleted successfully", indexName), nil)
 }
 func (h *AdminHandler) GetExistElasticIndex(w http.ResponseWriter, r *http.Request) {
-	res, err := h.ESRepo.Client.Indices.Get([]string{"news_articles"}, h.ESRepo.Client.Indices.Get.WithContext(context.Background()))
+	vars := mux.Vars(r)
+	indexName := vars["name"]
+	if indexName == "" {
+		util.SendErrorResponse(w, http.StatusBadRequest, "Index name is required", nil)
+		return
+	}
+	res, err := h.ESRepo.Client.Indices.Get([]string{indexName}, h.ESRepo.Client.Indices.Get.WithContext(context.Background()))
 	if err != nil {
 		util.SendErrorResponse(w, http.StatusInternalServerError, "Failed to get Elasticsearch info", err.Error())
 		return
