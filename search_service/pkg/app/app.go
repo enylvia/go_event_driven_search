@@ -1,14 +1,20 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"search_service/pkg/config"
+	"search_service/pkg/consumer"
 	"search_service/pkg/handler"
 	"search_service/pkg/repository"
 	"search_service/pkg/service"
+	"syscall"
 )
 
 type Application struct {
@@ -16,6 +22,7 @@ type Application struct {
 	Router      *mux.Router
 	ESRepo      *repository.ElasticSearchRepository
 	NewsService *service.NewsService
+	Consumer    *consumer.RabbitMQConsumer
 }
 
 func NewApplication(cfg *config.AppConfig, esRepo *repository.ElasticSearchRepository) *Application {
@@ -29,6 +36,12 @@ func NewApplication(cfg *config.AppConfig, esRepo *repository.ElasticSearchRepos
 	app.NewsService = newsService
 	newsHandler := handler.NewNewsHandler(newsService)
 	app.setupRoutes(adminHandler, newsHandler)
+
+	rmqConsumer, err := consumer.NewRabbitMQConsumer(cfg, newsService)
+	if err != nil {
+		log.Fatalf("Failed to initialize RabbitMQ consumer: %v", err)
+	}
+	app.Consumer = rmqConsumer
 
 	return app
 }
@@ -53,6 +66,21 @@ func (a *Application) setupRoutes(
 }
 
 func (a *Application) StartApplication() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		a.Consumer.StartConsuming(ctx)
+	}()
+
 	log.Printf("Starting HTTP server on port %s", a.Config.AppPort)
-	log.Fatal(http.ListenAndServe(":"+a.Config.AppPort, a.Router))
+	err := http.ListenAndServe(":"+a.Config.AppPort, a.Router)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("HTTP server failed: %v", err)
+	}
+
+	<-ctx.Done()
+	log.Println("Shutting down application gracefully...")
+	a.Consumer.Close()
+	log.Println("RabbitMQ Consumer closed during shutdown.")
 }

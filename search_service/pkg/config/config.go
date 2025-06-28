@@ -20,6 +20,7 @@ func LoadConfig() *AppConfig {
 	return &AppConfig{
 		AppPort:          getEnv("APP_PORT", "8080"),
 		ElasticSearchURL: getEnv("ELASTICSEARCH_URL", "http://localhost:9200"),
+		RabbitMQURL:      getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 	}
 }
 func getEnv(key, defaultValue string) string {
